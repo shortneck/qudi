@@ -156,7 +156,16 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
 
     def on_activate(self):
         """ Starts up the NI Card at activation.
+
+        @param object e: Event class object from Fysom.
+                         An object created by the state machine module Fysom,
+                         which is connected to a specific event (have a look in
+                         the Base Class). This object contains the passed event,
+                         the state before the event happened and the destination
+                         of the state which should be reached after the event
+                         had happened.
         """
+
         # the tasks used on that hardware device:
         self._counter_daq_tasks = []
         self._clock_daq_task = None
@@ -166,6 +175,17 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
         self._line_length = None
         self._odmr_length = None
         self._gated_counter_daq_task = None
+        self._odmr_analog_daq_task = None
+
+        # used as a default for expected maximum counts
+        self._max_counts = 3e7
+        # timeout for the Read or/and write process in s
+        self._RWTimeout = 10
+
+        self._clock_frequency_default = 100             # in Hz
+        self._scanner_clock_frequency_default = 100     # in Hz
+        # number of readout samples, mainly used for gated counter
+        self._samples_number_default = 50
 
         config = self.getConfiguration()
 
@@ -176,6 +196,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
         self._counter_channels = []
         self._scanner_counter_channels = []
         self._photon_sources = []
+        self._analog_in_ch = []
 
         # handle all the parameters given by the config
         if 'scanner_x_ao' in config.keys():
@@ -205,6 +226,9 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
                 'Be sure to start with scanner_x_ao\n'
                 'Assign to that parameter an appropriate channel from your NI Card, '
                 'otherwise you cannot control the analog channels!')
+
+        if 'analog_in_ch' in config.keys():
+            self._analog_in_ch = config['analog_in_ch']
 
         if 'photon_source' in config.keys():
             self._photon_sources.append(config['photon_source'])
@@ -240,10 +264,59 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
                 'No parameter "scanner_counter_channel" configured.\n'
                 'Assign to that parameter an appropriate channel from your NI Card!')
 
-        if self._counting_edge_rising:
-            self._counting_edge = daq.DAQmx_Val_Rising
+        if 'scanner_clock_channel' in config.keys():
+            self._scanner_clock_channel = config['scanner_clock_channel']
         else:
-            self._counting_edge = daq.DAQmx_Val_Falling
+            self.log.error(
+                'No parameter "scanner_clock_channel" configured.\n'
+                'Assign to that parameter an appropriate channel from your NI Card!')
+
+        if 'pixel_clock_channel' in config.keys():
+            self._pixel_clock_channel = config['pixel_clock_channel']
+        else:
+            self._pixel_clock_channel = None
+
+        if 'clock_frequency' in config.keys():
+            self._clock_frequency = config['clock_frequency']
+        else:
+            self._clock_frequency = self._clock_frequency_default
+            self.log.warning(
+                'No clock_frequency configured, taking 100 Hz instead.')
+
+        if 'gate_in_channel' in config.keys():
+            self._gate_in_channel = config['gate_in_channel']
+        else:
+            self.log.error(
+                'No parameter "gate_in_channel" configured.\n'
+                'Choose the proper channel on your NI Card and assign it to that parameter!')
+
+        if 'counting_edge_rising' in config.keys():
+            if config['counting_edge_rising']:
+                self._counting_edge = daq.DAQmx_Val_Rising
+            else:
+                self._counting_edge = daq.DAQmx_Val_Falling
+        else:
+            self.log.warning(
+                'No parameter "counting_edge_rising" configured.\n'
+                'Set this parameter either to True (rising edge) or to False (falling edge).\n'
+                'Taking the default value {0}'.format(self._counting_edge_default))
+            self._counting_edge = self._counting_edge_default
+
+        if 'scanner_clock_frequency' in config.keys():
+            self._scanner_clock_frequency = config['scanner_clock_frequency']
+        else:
+            self._scanner_clock_frequency = self._scanner_clock_frequency_default
+            self.log.warning(
+                'No scanner_clock_frequency configured, taking 100 Hz instead.')
+
+        if 'samples_number' in config.keys():
+            self._samples_number = config['samples_number']
+        else:
+            self._samples_number = self._samples_number_default
+            self.log.warning(
+                'No parameter "samples_number" configured taking the default value "{0}" instead.'
+                ''.format(self._samples_number_default))
+            self._samples_number = self._samples_number_default
 
         if 'x_range' in config.keys() and len(self._position_range) > 0:
             if float(config['x_range'][0]) < float(config['x_range'][1]):
@@ -1515,6 +1588,10 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
             self.log.error('Another counter is already running, close this one first.')
             return -1
 
+        if self._odmr_analog_daq_task is not None:
+            self.log.error('Another analog is already running, close this one first.')
+            return -1
+
         if clock_channel is not None:
             my_clock_channel = clock_channel
         else:
@@ -1532,9 +1609,11 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
 
         # this task will count photons with binning defined by the clock_channel
         task = daq.TaskHandle()
+        atask = daq.TaskHandle()
         try:
             # create task for the counter
             daq.DAQmxCreateTask('ODMRCounter', daq.byref(task))
+            daq.DAQmxCreateTask('ODMRAnalog', daq.byref(atask))
 
             # set up semi period width measurement in photon ticks, i.e. the width
             # of each pulse (high and low) generated by pulse_out_task is measured
@@ -1556,6 +1635,18 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
                 # units of width measurement, here photon ticks
                 daq.DAQmx_Val_Ticks,
                 '')
+
+            # Analog task
+            daq.DAQmxCreateAIVoltageChan(
+                atask,
+                self._analog_in_ch,
+                'ODMR Analog',
+                daq.DAQmx_Val_RSE,
+                -10,
+                10,
+                daq.DAQmx_Val_Volts,
+                ''
+            )
 
             # connect the pulses from the clock to the counter
             daq.DAQmxSetCISemiPeriodTerm(
@@ -1581,6 +1672,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
                 self._odmr_trigger_channel,
                 daq.DAQmx_Val_DoNotInvertPolarity)
             self._scanner_counter_daq_tasks.append(task)
+            self._odmr_analog_daq_task = atask
         except:
             self.log.exception('Error while setting up ODMR scan.')
             return -1
@@ -1595,6 +1687,10 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
         """
         if len(self._scanner_counter_daq_tasks) < 1:
             self.log.error('No counter is running, cannot do ODMR without one.')
+            return -1
+
+        if self._odmr_analog_daq_task is None:
+            self.log.error('No analog is running, cannot do ODMR without one.')
             return -1
 
         self._odmr_length = length
@@ -1633,6 +1729,18 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
             daq.DAQmxSetReadOverWrite(
                 self._scanner_counter_daq_tasks[0],
                 daq.DAQmx_Val_DoNotOverwriteUnreadSamps)
+
+            # Analog
+            # Analog in channel timebase
+            daq.DAQmxCfgSampClkTiming(
+                self._odmr_analog_daq_task,
+                self._scanner_clock_channel + 'InternalOutput',
+                2000,
+                daq.DAQmx_Val_Rising,
+                daq.DAQmx_Val_ContSamps,
+                self._odmr_length + 1
+            )
+
         except:
             self.log.exception('Error while setting up ODMR counter.')
             return -1
@@ -1650,11 +1758,16 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
                 'No counter is running, cannot scan an ODMR line without one.')
             return np.array([-1.])
 
+        if self._odmr_analog_daq_task is None:
+            self.log.error('No analog is running, cannot do ODMR without one.')
+            return np.array([-1.])
+
         # check if length setup is correct, if not, adjust.
         self.set_odmr_length(length)
         try:
             # start the scanner counting task that acquires counts synchroneously
             daq.DAQmxStartTask(self._scanner_counter_daq_tasks[0])
+            daq.DAQmxStartTask(self._odmr_analog_daq_task)
         except:
             self.log.exception('Cannot start ODMR counter.')
             return np.array([-1.])
@@ -1694,8 +1807,28 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
                 # Reserved for future use. Pass NULL (here None) to this parameter.
                 None)
 
+            # Analog
+            self._odmr_analog_data = np.full(
+                (self._odmr_length + 1,),
+                222,
+                dtype=np.float64)
+
+            analog_read_samples = daq.int32()
+
+            daq.DAQmxReadAnalogF64(
+                self._odmr_analog_daq_task,
+                self._odmr_length + 1,
+                self._RWTimeout,
+                daq.DAQmx_Val_GroupByChannel,
+                self._odmr_analog_data,
+                self._odmr_length + 1,
+                daq.byref(analog_read_samples),
+                None
+            )
+
             # stop the counter task
             daq.DAQmxStopTask(self._scanner_counter_daq_tasks[0])
+            daq.DAQmxStopTask(self._odmr_analog_daq_task)
             daq.DAQmxStopTask(self._scanner_clock_daq_task)
 
             # create a new array for the final data (this time of the length
@@ -1706,6 +1839,8 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
             # the clock:
             self._real_data = self._odmr_data[:-1:2]
             self._real_data += self._odmr_data[1:-1:2]
+
+            print(analog_read_samples.value, self._odmr_length, self._odmr_analog_data)
 
             return self._real_data * self._scanner_clock_frequency
         except:
@@ -1723,9 +1858,22 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
             daq.DAQmxDisconnectTerms(
                 self._scanner_clock_channel + 'InternalOutput',
                 self._odmr_trigger_channel)
+
         except:
             self.log.exception('Error while disconnecting ODMR clock channel.')
             retval = -1
+
+        try:
+            # stop the counter task
+            daq.DAQmxStopTask(self._odmr_analog_daq_task)
+            # after stopping delete all the configuration of the counter
+            daq.DAQmxClearTask(self._odmr_analog_daq_task)
+            # set the task handle to None as a safety
+            self._odmr_analog_daq_task = None
+        except:
+            self.log.exception('Could not close analog.')
+            retval = -1
+
         retval = -1 if self.close_counter(scanner=True) < 0 or retval < 0 else 0
         return retval
 
@@ -1986,4 +2134,150 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
             self.log.exception('Error while clearing gated counter.')
             retval = -1
         return retval
+
+
+class SlowGatedNICard(NICard):
+    """ Enable the usage of the gated counter in the slow counter interface.
+    Overwrite in this new class therefore the appropriate methods. """
+
+    _modtype = 'SlowGatedNICard'
+    _modclass = 'hardware'
+
+    def on_activate(self):
+        """ Starts up the NI Card at activation.
+        """
+        self._gated_counter_daq_task = None
+        # used as a default for expected maximum counts
+        self._max_counts = 3e7
+        # timeout for the Read or/and write process in s
+        self._RWTimeout = 5
+        # in Hz
+        self._clock_frequency_default = 100
+        # number of readout samples mainly used for gated counter
+        self._samples_number_default = 50
+        # count on rising edge mainly used for gated counter
+        self._counting_edge_default = True
+
+        self._counter_channels = []
+
+        self._counter_channel = '/NIDAQ/Ctr0'
+
+        config = self.getConfiguration()
+
+        if 'photon_source' in config.keys():
+            self._photon_source=config['photon_source']
+        else:
+            self.log.error(
+                'No parameter "photon_source" configured.\n'
+                'Assign to that parameter an appropriated channel from your NI Card!')
+
+        if 'gate_in_channel' in config.keys():
+            self._gate_in_channel = config['gate_in_channel']
+        else:
+            self.log.error(
+                'No parameter "gate_in_channel" configured. '
+                'Choose the proper channel on your NI Card and assign it to that parameter!')
+
+        if 'counting_edge_rising' in config.keys():
+            if config['counting_edge_rising']:
+                self._counting_edge = daq.DAQmx_Val_Rising
+            else:
+                self._counting_edge = daq.DAQmx_Val_Falling
+        else:
+            self.log.warning(
+                'No parameter "counting_edge_rising" configured.\n'
+                'Set this parameter either to True (rising edge) or to False (falling edge).\n'
+                'Taking the default value {0}'.format(self._counting_edge_default))
+
+            self._counting_edge = self._counting_edge_default
+
+        if 'samples_number' in config.keys():
+            self._samples_number = config['samples_number']
+        else:
+            self._samples_number = self._samples_number_default
+            self.log.warning(
+                'No parameter "samples_number" configured taking the default value "{0}" instead.'
+                ''.format(self._samples_number_default))
+            self._samples_number = self._samples_number_default
+
+    def get_constraints(self):
+        """ Get hardware limits of NI device.
+
+        @return SlowCounterConstraints: constraints class for slow counter
+
+        FIXME: ask hardware for limits when module is loaded
+        """
+        constraints = SlowCounterConstraints()
+        constraints.max_detectors = 4
+        constraints.min_count_frequency = 1e-3
+        constraints.max_count_frequency = 10e9
+        constraints.counting_mode = [CountingMode.FINITE_GATED]
+        return constraints
+
+    #overwrite the SlowCounterInterface commands of the class NICard:
+    def set_up_clock(self, clock_frequency=None, clock_channel=None):
+        """ Configures the hardware clock of the NiDAQ card to give the timing.
+
+        @param float clock_frequency: if defined, this sets the frequency of
+                                      the clock
+        @param string clock_channel: if defined, this is the physical channel
+                                     of the clock
+
+        @return int: error code (0:OK, -1:error)
+        """
+        # ignore that command. For an gated counter (with external trigger
+        # you do not need a clock signal).
+        return 0
+
+    def set_up_counter(self,
+                       counter_channel=None,
+                       photon_source=None,
+                       counter_channel2=None,
+                       photon_source2=None,
+                       clock_channel=None,
+                       counter_buffer=None):
+        """ Configures the actual counter with a given clock.
+
+        @param str counter_channel: optional, physical channel of the counter
+        @param str photon_source: optional, physical channel where the photons
+                                  are to count from
+        @param str counter_channel2: optional, physical channel of the counter 2
+        @param str photon_source2: optional, second physical channel where the
+                                   photons are to count from
+        @param str clock_channel: optional, specifies the clock channel for the
+                                  counter
+        @param int counter_buffer: optional, a buffer of specified integer
+                                   length, where in each bin the count numbers
+                                   are saved.
+
+        @return int: error code (0:OK, -1:error)
+        """
+        if self.set_up_gated_counter(buffer_length=counter_buffer) < 0:
+            return -1
+        return self.start_gated_counter()
+
+    def get_counter(self, samples=None):
+        """ Returns the current counts per second of the counter.
+
+        @param int samples: if defined, number of samples to read in one go
+
+        @return numpy.array(uint32): the photon counts per second
+        """
+        return self.get_gated_counts(samples=samples)
+
+    def close_counter(self):
+        """ Closes the counter and cleans up afterwards.
+
+        @return int: error code (0:OK, -1:error)
+        """
+        if self.stop_gated_counter() < 0:
+            return -1
+        return self.close_gated_counter()
+
+    def close_clock(self):
+        """ Closes the clock and cleans up afterwards.
+
+        @return int: error code (0:OK, -1:error)
+        """
+        return 0
 
