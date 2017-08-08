@@ -586,7 +586,9 @@ class ODMRLogic(GenericLogic):
             self.reset_sweep()
 
             # Acquire count data
-            new_counts = self._odmr_counter.count_odmr(length=self.odmr_plot_x.size)
+            all_data = self._odmr_counter.count_odmr(length=self.odmr_plot_x.size)
+            new_counts = all_data[0]
+            new_analog = all_data[1:]
             if new_counts[0] == -1:
                 self.stopRequested = True
                 self.sigNextLine.emit()
@@ -635,6 +637,9 @@ class ODMRLogic(GenericLogic):
             self.sigOdmrPlotsUpdated.emit(self.odmr_plot_x, self.odmr_plot_y, self.odmr_plot_xy)
             self.sigNextLine.emit()
             return
+
+    def get_odmr_channels(self):
+        return self._odmr_counter.get_odmr_channels()
 
     def get_hw_constraints(self):
         """ Return the names of all ocnfigured fit functions.

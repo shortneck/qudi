@@ -147,6 +147,14 @@ class ODMRGui(GUIBase):
         self._mw.clear_odmr_PushButton.setEnabled(False)
         self._mw.toolBar.addWidget(self._mw.clear_odmr_PushButton)
 
+        # Set up and connect channel combobox
+        self.display_channel = 0
+        odmr_channels = self._odmr_logic.get_odmr_channels()
+        for n, ch in enumerate(odmr_channels):
+            self._mw.odmr_channel_ComboBox.addItem(str(ch), n)
+
+        self._mw.odmr_channel_ComboBox.activated.connect(self.update_channel)
+
         # Get the image from the logic
         self.odmr_matrix_image = pg.ImageItem(self._odmr_logic.odmr_plot_xy, axisOrder='row-major')
         self.odmr_matrix_image.setRect(QtCore.QRectF(
@@ -493,6 +501,10 @@ class ODMRGui(GUIBase):
             axisOrder='row-major',
             levels=(cb_range[0], cb_range[1]))
 
+    def update_channel(self, index):
+        self.display_channel = int(
+            self._mw.odmr_channel_ComboBox.itemData(index, QtCore.Qt.UserRole))
+
     def colorscale_changed(self):
         """
         Updates the range of the displayed colorscale in both the colorbar and the matrix plot.
@@ -562,7 +574,7 @@ class ODMRGui(GUIBase):
         return
 
     def do_fit(self):
-        fit_function  = self._mw.fit_methods_ComboBox.getCurrentFit()[0]
+        fit_function = self._mw.fit_methods_ComboBox.getCurrentFit()[0]
         self.sigDoFit.emit(fit_function)
         return
 
