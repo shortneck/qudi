@@ -1859,7 +1859,8 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
                 222,
                 dtype=np.float64)
             all_data[0] = np.array(self._real_data * self._scanner_clock_frequency, np.float64)
-            all_data[1:] = self._odmr_analog_data[:, :-1]
+            if len(self._scanner_ai_ch) > 0:
+                all_data[1:] = self._odmr_analog_data[:, :-1]
 
             return all_data
         except:
