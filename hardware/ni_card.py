@@ -1831,7 +1831,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface, ODMRCounterIn
                     self._RWTimeout,
                     daq.DAQmx_Val_GroupByChannel,
                     self._odmr_analog_data,
-                    self._odmr_length + 1,
+                    len(self._scanner_ai_ch) * (self._odmr_length + 1),
                     daq.byref(analog_read_samples),
                     None
                 )
