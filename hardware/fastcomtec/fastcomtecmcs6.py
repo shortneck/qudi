@@ -131,6 +131,34 @@ class ACQDATA(ctypes.Structure):
                 ('hcm', ctypes.c_int),
                 ('hct', ctypes.c_int), ]
 
+
+class BOARDSETTING(ctypes.Structure):
+    _fields_ = [('sweepmode',   ctypes.c_long),
+                ('prena',       ctypes.c_long),
+                ('cycles',      ctypes.c_long),
+                ('sequences',   ctypes.c_long),
+                ('syncout',     ctypes.c_long),
+                ('digio',       ctypes.c_long),
+                ('digval',      ctypes.c_long),
+                ('dac0',        ctypes.c_long),
+                ('dac1',        ctypes.c_long),
+                ('dac2',        ctypes.c_long),
+                ('dac3',        ctypes.c_long),
+                ('dac4',        ctypes.c_long),
+                ('dac5',        ctypes.c_long),
+                ('fdac',        ctypes.c_int),
+                ('tagbits',     ctypes.c_int),
+                ('extclk',      ctypes.c_int),
+                ('maxchan',     ctypes.c_long),
+                ('serno',       ctypes.c_long),
+                ('ddruse',      ctypes.c_long),
+                ('active',      ctypes.c_long),
+                ('holdafter',   ctypes.c_double),
+                ('swpreset',    ctypes.c_double),
+                ('fstchan',     ctypes.c_double),
+                ('timepreset',  ctypes.c_double), ]
+
+
 class FastComtec(Base, FastCounterInterface):
     """
     unstable: Jochen Scheuer, Simon Schmitt
@@ -334,9 +362,27 @@ class FastComtec(Base, FastCounterInterface):
         setting = AcqSettings()
         self.dll.GetSettingData(ctypes.byref(setting), 0)
         NN = setting.range
-        data = np.empty((NN,), dtype=np.uint32)
-        self.dll.LVGetDat(data.ctypes.data, 0)
 
+        data = np.empty((NN,), dtype=np.uint32)
+        p_type_ulong = ctypes.POINTER(ctypes.c_uint32)
+        ptr = data.ctypes.data_as(p_type_ulong)
+        self.dll.LVGetDat(ptr, 0)
+
+        #self.log.warning(data)
+        return np.int64(data)
+
+
+    def get_2D_trace(self):
+
+        ''' Returns the current data in fastcomtech. Use if preset > 1'''
+        setting = AcqSettings()
+        self.dll.GetSettingData(ctypes.byref(setting), 0)
+        N = setting.range
+        H = setting.cycles
+        data = np.empty((H, N / H), dtype=np.uint32)
+        p_type_ulong = ctypes.POINTER(ctypes.c_uint32)
+        ptr = data.ctypes.data_as(p_type_ulong)
+        self.dll.LVGetDat(ptr, 0)
         return np.int64(data)
 
 
