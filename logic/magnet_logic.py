@@ -315,7 +315,20 @@ class MagnetLogic(GenericLogic):
         """
         return self._magnet_device.get_constraints()
 
-    def move_rel(self, param_dict):
+    def move_rel2(self, param_dict):
+        """ Move the specified axis in the param_dict relative with an assigned
+                    value.
+
+                @param dict param_dict: dictionary, which passes all the relevant
+                                        parameters. E.g., for a movement of an axis
+                                        labeled with 'x' by 23 the dict should have the
+                                        form:
+                                            param_dict = { 'x' : 23 }
+                @return dict param_dict    """
+        self.sigMoveRel.emit(param_dict)
+        return param_dict
+
+    def move_relative(self, param_dict):
         """ Move the specified axis in the param_dict relative with an assigned
             value.
 
@@ -324,7 +337,7 @@ class MagnetLogic(GenericLogic):
                                 labeled with 'x' by 23 the dict should have the
                                 form:
                                     param_dict = { 'x' : 23 }
-        @return error code (0:OK, -1:error)        """
+        @return dict param_dict    """
 
 
         self.sigMoveRel.emit(param_dict)
