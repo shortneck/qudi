@@ -24,8 +24,8 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 #TODO: Check if there are more modules which are missing, and more settings for FastComtec which need to be put, should we include voltage threshold?
 
 
-
-from core.module import Base
+from core.module import Base, ConfigOption
+#from core.module import Base
 from interface.fast_counter_interface import FastCounterInterface
 import time
 import os
@@ -168,6 +168,8 @@ class FastComtec(Base, FastCounterInterface):
     _modclass = 'FastComtec'
     _modtype = 'hardware'
 
+    GATED = ConfigOption('gated', False, missing='warn')
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
@@ -176,19 +178,22 @@ class FastComtec(Base, FastCounterInterface):
         # checking for the right configuration
         for key in config.keys():
             self.log.info('{0}: {1}'.format(key,config[key]))
-
-        self.GATED = False
         self.MINIMAL_BINWIDTH = 0.2e-9    # in seconds per bin
+
         #this variable has to be added because there is no difference
         #in the fastcomtec it can be on "stopped" or "halt"
         self.stopped_or_halt = "stopped"
+
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
 
         self.dll = ctypes.windll.LoadLibrary('C:\Windows\System32\DMCS6.dll')
-
+        if self.GATED:
+            self.change_sweep_mode(gated=True)
+        else:
+            self.change_sweep_mode(gated=False)
         return
 
     def on_deactivate(self):
@@ -240,7 +245,7 @@ class FastComtec(Base, FastCounterInterface):
         return constraints
 
 
-    def configure(self, bin_width_s, record_length_s, number_of_gates = 0,filename=None):
+    def configure(self, bin_width_s, record_length_s, number_of_gates = 0, filename=None):
         """ Configuration of the fast counter.
 
         @param float bin_width_s: Length of a single time bin in the time trace
@@ -257,15 +262,16 @@ class FastComtec(Base, FastCounterInterface):
                     None if not-gated
         """
 
-        # to make sure no sequence trigger is missed
+        # when not gated, record length = total sequence length, when gated, record length = laser length.
+        # subtract 20 ns to make sure no sequence trigger is missed
         record_length_FastComTech_s = record_length_s - 20e-9
-
         no_of_bins = int(record_length_FastComTech_s / self.set_binwidth(bin_width_s))
-        self.set_length(no_of_bins)
+        self.set_length(no_of_bins, preset=1, cycles=number_of_gates)
 
         if filename is not None:
             self._change_filename(filename)
-        return (self.get_binwidth(), record_length_FastComTech_s, None)
+
+        return (self.get_binwidth(), record_length_FastComTech_s, number_of_gates)
 
     #card if running or halt or stopped ...
     def get_status(self):
@@ -358,32 +364,24 @@ class FastComtec(Base, FastCounterInterface):
 
           @return arrray: Time trace.
         """
-
-        setting = AcqSettings()
-        self.dll.GetSettingData(ctypes.byref(setting), 0)
-        NN = setting.range
-
-        data = np.empty((NN,), dtype=np.uint32)
-        p_type_ulong = ctypes.POINTER(ctypes.c_uint32)
-        ptr = data.ctypes.data_as(p_type_ulong)
-        self.dll.LVGetDat(ptr, 0)
-
-        #self.log.warning(data)
-        return np.int64(data)
-
-
-    def get_2D_trace(self):
-
-        ''' Returns the current data in fastcomtech. Use if preset > 1'''
         setting = AcqSettings()
         self.dll.GetSettingData(ctypes.byref(setting), 0)
         N = setting.range
-        H = setting.cycles
-        data = np.empty((H, N / H), dtype=np.uint32)
+
+        if self.GATED:
+            bsetting=BOARDSETTING()
+            self.dll.GetMCSSetting(ctypes.byref(bsetting), 0)
+            H = bsetting.cycles
+            data = np.empty((H, int(N / H)), dtype=np.uint32)
+
+        else:
+            data = np.empty((N,), dtype=np.uint32)
+
         p_type_ulong = ctypes.POINTER(ctypes.c_uint32)
         ptr = data.ctypes.data_as(p_type_ulong)
         self.dll.LVGetDat(ptr, 0)
         return np.int64(data)
+
 
 
 
@@ -432,8 +430,9 @@ class FastComtec(Base, FastCounterInterface):
 
         return self.MINIMAL_BINWIDTH*(2**new_bitshift)
 
-    #TODO: Check such that only possible lengths are set.
-    def set_length(self, length_bins):
+
+
+    def set_length(self, length_bins, preset=None, cycles=None):
         """ Sets the length of the length of the actual measurement.
 
         @param int length_bins: Length of the measurement in bins
@@ -446,6 +445,12 @@ class FastComtec(Base, FastCounterInterface):
             self.dll.RunCmd(0, bytes(cmd, 'ascii'))
             cmd = 'roimax={0}'.format(int(length_bins))
             self.dll.RunCmd(0, bytes(cmd, 'ascii'))
+            if preset != None:
+                cmd = 'swpreset={0}'.format(preset)
+                self.dll.RunCmd(0, bytes(cmd, 'ascii'))
+            if cycles != None and cycles != 0:
+                cmd = 'cycles={0}'.format(cycles)
+                self.dll.RunCmd(0, bytes(cmd, 'ascii'))
             return self.get_length()
         else:
             self.log.error(
@@ -466,6 +471,22 @@ class FastComtec(Base, FastCounterInterface):
         cmd = 'mpaname=%s'%name
         self.dll.RunCmd(0, bytes(cmd, 'ascii'))
         return name
+
+    def change_sweep_mode(self, gated):
+        if gated:
+            cmd = 'sweepmode={0}'.format(hex(1978500))
+            self.dll.RunCmd(0, bytes(cmd, 'ascii'))
+            cmd = 'prena={0}'.format(hex(4))
+            self.dll.RunCmd(0, bytes(cmd, 'ascii'))
+            self.GATED = True
+        else:
+            # fastcomtch standard settings for ungated acquisition (check manual)
+            cmd = 'sweepmode={0}'.format(hex(1978496))
+            self.dll.RunCmd(0, bytes(cmd, 'ascii'))
+            cmd = 'prena={0}'.format(hex(0))
+            self.dll.RunCmd(0, bytes(cmd, 'ascii'))
+            self.GATED = False
+        return gated
 
 
     # =========================================================================
