@@ -1251,7 +1251,7 @@ class PulsedMeasurementGui(GUIBase):
         self._fsd.applySettings()
 
         # Configure the main pulse analysis display:
-        self.signal_image = pg.PlotDataItem(np.array(range(10)), np.zeros(10), pen=palette.c1)
+        self.signal_image = pg.PlotDataItem(np.array(range(10)), np.zeros(10), pen=palette.c1, symbol='o', symbolSize='6')
         self._pa.pulse_analysis_PlotWidget.addItem(self.signal_image)
         self.signal_image2 = pg.PlotDataItem(pen=palette.c3)
         self._pa.pulse_analysis_PlotWidget.addItem(self.signal_image2)

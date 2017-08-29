@@ -109,6 +109,9 @@
         </item>
         <item row="2" column="1">
          <widget class="QSpinBox" name="extract_param_ana_window_start_SpinBox">
+          <property name="minimum">
+           <number>-10000000</number>
+          </property>
           <property name="maximum">
            <number>10000000</number>
           </property>

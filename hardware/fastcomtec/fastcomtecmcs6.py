@@ -263,9 +263,15 @@ class FastComtec(Base, FastCounterInterface):
         """
 
         # when not gated, record length = total sequence length, when gated, record length = laser length.
-        # subtract 20 ns to make sure no sequence trigger is missed
-        record_length_FastComTech_s = record_length_s - 20e-9
-        no_of_bins = int(record_length_FastComTech_s / self.set_binwidth(bin_width_s))
+        # subtract 200 ns to make sure no sequence trigger is missed
+        record_length_FastComTech_s = record_length_s
+        if self.GATED:
+            # add 300 ns to account for AOM delay
+            no_of_bins = int((record_length_FastComTech_s+ 300e-9) / self.set_binwidth(bin_width_s))
+        else:
+            # subtract 200 ns to make sure no sequence trigger is missed
+            no_of_bins = int((record_length_FastComTech_s - 200e-9)/ self.set_binwidth(bin_width_s))
+
         self.set_length(no_of_bins, preset=1, cycles=number_of_gates)
 
         if filename is not None:
@@ -352,6 +358,16 @@ class FastComtec(Base, FastCounterInterface):
         @return bool: Boolean value indicates if the fast counter is a gated
                       counter (TRUE) or not (FALSE).
         """
+        return self.GATED
+
+    def set_gated(self, gated):
+        """ Check the gated counting possibility.
+
+        @return bool: Boolean value indicates if the fast counter is a gated
+                      counter (TRUE) or not (FALSE).
+        """
+        self.GATED = gated
+        self.change_sweep_mode(gated)
         return self.GATED
 
     def get_data_trace(self):
@@ -476,7 +492,8 @@ class FastComtec(Base, FastCounterInterface):
         if gated:
             cmd = 'sweepmode={0}'.format(hex(1978500))
             self.dll.RunCmd(0, bytes(cmd, 'ascii'))
-            cmd = 'prena={0}'.format(hex(4))
+            cmd = 'prena={0}'.format(hex(16)) #To select starts preset
+            # cmd = 'prena={0}'.format(hex(4)) #To select sweeps preset
             self.dll.RunCmd(0, bytes(cmd, 'ascii'))
             self.GATED = True
         else:

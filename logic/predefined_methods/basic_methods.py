@@ -847,7 +847,7 @@ def generate_xy8_tau(self, name='XY8_tau', rabi_period=1.0e-6, mw_freq=2870.0e6,
     block_ensemble.activation_config = self.activation_config
     block_ensemble.amplitude_dict = self.amplitude_dict
     block_ensemble.laser_channel = self.laser_channel
-    block_ensemble.alternating = True
+    block_ensemble.alternating = alternating
     block_ensemble.laser_ignore_list = []
     block_ensemble.controlled_vals_array = tau_array
     # save ensemble

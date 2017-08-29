@@ -257,11 +257,13 @@ def ungated_threshold(self, count_data):
     # get all bin indices with counts > threshold value
     bigger_indices = np.where(count_data >= self.count_threshold)[0]
     # get all indices with consecutive numbering (bin chains not interrupted by values < threshold
-    consecutive_indices = self._find_consecutive_tolerance(np.array(bigger_indices), self.threshold_tolerance_bins)
+    consecutive_indices_unfiltered = \
+        self._find_consecutive_tolerance(np.array(bigger_indices), self.threshold_tolerance_bins)
     # sort out all groups shorter than minimum laser length
-    for i, index_group in enumerate(consecutive_indices):
-        if len(index_group) < self.min_laser_length:
-            del consecutive_indices[i]
+    consecutive_indices = [item for item in consecutive_indices_unfiltered if len(item) > self.min_laser_length]
+    # for i, index_group in enumerate(consecutive_indices):
+    #     if len(index_group) < self.min_laser_length:
+    #         del consecutive_indices[i]
 
     # Check if the number of lasers matches the number of remaining index groups
     if self.number_of_lasers != len(consecutive_indices):
@@ -280,6 +282,39 @@ def ungated_threshold(self, count_data):
         return_dict['laser_counts_arr'][i, :index_group.size] = count_data[index_group]
 
     return return_dict
+
+
+def ungated_gated_conv_deriv(self, count_data):
+    """
+        Extracts the laser pulses in the ungated timetrace data using laser_start_indicies and laser_length
+
+        @param numpy.ndarray count_data:    1D array the raw timetrace data from an ungated fast counter
+
+        @return 2D numpy.ndarray:   2D array, the extracted laser pulses of the timetrace.
+                                    dimensions: 0: laser number, 1: time bin
+
+        Procedure:
+            Threshold detection:
+            ---------------
+
+            Finds the laser pulses from the ungated timetrace using that their positions are known. The laser pulses are
+            the extracted using gated_conv_deriv.
+        """
+
+    #dimensions of laser pulse array
+    num_rows = len(self.laser_start_indices)
+    num_col = self.laser_length + 2 * self.safety
+    # compute from laser_start_indices and laser length the respective position of the laser pulses
+    laser_pulses = np.empty((num_rows,num_col))
+    for i in range(num_rows):
+        laser_pulses[i][:] = count_data[np.arange(self.laser_start_indices[i] + self.aom_delay - self.safety,
+                                                    self.laser_start_indices[i] + self.aom_delay + self.safety + self.laser_length)]
+
+    return_dict = self.gated_conv_deriv(laser_pulses)
+
+    return return_dict
+
+
 
 def _convolve_derive(self, data, std_dev):
     """ Smooth the input data by applying a gaussian filter.
