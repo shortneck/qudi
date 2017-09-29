@@ -221,9 +221,9 @@ def ungated_threshold(self, count_data):
         Threshold detection:
         ---------------
 
-        All count data from the time trace is compared to a trehold value.
-        Values above the trehold are considered to belong to a laser pulse.
-        If the length of a pulse would be below the minium length the pulse is discarded
+        All count data from the time trace is compared to a threshold value.
+        Values above the threshold are considered to belong to a laser pulse.
+        If the length of a pulse would be below the minimum length the pulse is discarded
         If a number of bins smaller as threshold_tolerance_bins are below the threshold they are still considered to
         belong to a laser pulse
     """
@@ -286,7 +286,7 @@ def ungated_threshold(self, count_data):
 
 def ungated_gated_conv_deriv(self, count_data):
     """
-        Extracts the laser pulses in the ungated timetrace data using laser_start_indicies and laser_length
+        Extracts the laser pulses in the ungated timetrace data using laser_start_indices and laser_length
 
         @param numpy.ndarray count_data:    1D array the raw timetrace data from an ungated fast counter
 

@@ -183,7 +183,7 @@ class FastComtec(Base, FastCounterInterface):
         #this variable has to be added because there is no difference
         #in the fastcomtec it can be on "stopped" or "halt"
         self.stopped_or_halt = "stopped"
-
+        self.timetrace_tmp = []
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -266,8 +266,8 @@ class FastComtec(Base, FastCounterInterface):
         # subtract 200 ns to make sure no sequence trigger is missed
         record_length_FastComTech_s = record_length_s
         if self.GATED:
-            # add 300 ns to account for AOM delay
-            no_of_bins = int((record_length_FastComTech_s+ 300e-9) / self.set_binwidth(bin_width_s))
+            # add 400 ns to account for AOM delay
+            no_of_bins = int((record_length_FastComTech_s+ 400e-9) / self.set_binwidth(bin_width_s))
         else:
             # subtract 200 ns to make sure no sequence trigger is missed
             no_of_bins = int((record_length_FastComTech_s - 200e-9)/ self.set_binwidth(bin_width_s))
@@ -325,6 +325,9 @@ class FastComtec(Base, FastCounterInterface):
         status = self.dll.Halt(0)
         while self.get_status() != 3:
             time.sleep(0.05)
+
+        if self.GATED:
+            self.timetrace_tmp = self.get_data_trace()
         return status
 
     def stop_measure(self):
@@ -333,13 +336,19 @@ class FastComtec(Base, FastCounterInterface):
         status = self.dll.Halt(0)
         while self.get_status() != 1:
             time.sleep(0.05)
+
+        if self.GATED:
+            self.timetrace_tmp = []
         return status
 
     def continue_measure(self):
         """Continue a paused measurement. """
-        status = self.dll.Continue(0)
-        while self.get_status() != 2:
-            time.sleep(0.05)
+        if self.GATED:
+            status = self.start_measure()
+        else:
+            status = self.dll.Continue(0)
+            while self.get_status() != 2:
+                time.sleep(0.05)
         return status
 
     def get_binwidth(self):
@@ -396,7 +405,12 @@ class FastComtec(Base, FastCounterInterface):
         p_type_ulong = ctypes.POINTER(ctypes.c_uint32)
         ptr = data.ctypes.data_as(p_type_ulong)
         self.dll.LVGetDat(ptr, 0)
-        return np.int64(data)
+        time_trace = np.int64(data)
+
+        if self.GATED and self.timetrace_tmp != []:
+            time_trace = time_trace + self.timetrace_tmp
+
+        return time_trace
 
 
 
