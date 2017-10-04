@@ -767,7 +767,7 @@ class PulsedMeasurementLogic(GenericLogic):
                     self.measuring_error_plot_y = tmp_error
 
                 # set laser to show
-                self.set_laser_to_show(self.show_laser_index, self.show_raw_data)
+                self.set_laser_to_show(self.number_of_lasers, self.show_raw_data)
 
                 # Compute FFT of signal
                 self._compute_fft()

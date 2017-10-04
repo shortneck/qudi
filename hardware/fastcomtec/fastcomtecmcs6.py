@@ -267,7 +267,7 @@ class FastComtec(Base, FastCounterInterface):
         record_length_FastComTech_s = record_length_s
         if self.GATED:
             # add 400 ns to account for AOM delay
-            no_of_bins = int((record_length_FastComTech_s+ 400e-9) / self.set_binwidth(bin_width_s))
+            no_of_bins = int((record_length_FastComTech_s+ 500e-9) / self.set_binwidth(bin_width_s))
         else:
             # subtract 200 ns to make sure no sequence trigger is missed
             no_of_bins = int((record_length_FastComTech_s - 200e-9)/ self.set_binwidth(bin_width_s))
