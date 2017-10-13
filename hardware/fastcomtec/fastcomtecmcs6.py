@@ -265,14 +265,26 @@ class FastComtec(Base, FastCounterInterface):
         # when not gated, record length = total sequence length, when gated, record length = laser length.
         # subtract 200 ns to make sure no sequence trigger is missed
         record_length_FastComTech_s = record_length_s
+        binwidth=self.set_binwidth(bin_width_s)
         if self.GATED:
-            # add 400 ns to account for AOM delay
-            no_of_bins = int((record_length_FastComTech_s+ 500e-9) / self.set_binwidth(bin_width_s))
+            #New configuration setting for Qdyne measurement. If there is only one laser pulse, then configure fastcomtec for Qdyne measurement
+            if number_of_gates == 1:
+                #make the region of interest just 400 ns
+                no_of_bins= int(400e-9 / binwidth)
+                self.set_length(no_of_bins, preset=1, cycles=number_of_gates)
+                #add a delay to the range, to account for AOM delay of 400 ns, for some reason an int of 62 gives correct delay?
+                cmd = 'fstchan={0}'.format(int(62))
+                self.dll.RunCmd(0, bytes(cmd, 'ascii'))
+            else:
+                # add 500 ns to account for AOM delay
+                no_of_bins = int((record_length_FastComTech_s+ 500e-9) / binwidth)
+                self.set_length(no_of_bins, preset=1, cycles=number_of_gates)
+                cmd = 'fstchan={0}'.format(0)
+                self.dll.RunCmd(0, bytes(cmd, 'ascii'))
         else:
             # subtract 200 ns to make sure no sequence trigger is missed
-            no_of_bins = int((record_length_FastComTech_s - 200e-9)/ self.set_binwidth(bin_width_s))
-
-        self.set_length(no_of_bins, preset=1, cycles=number_of_gates)
+            no_of_bins = int((record_length_FastComTech_s - 200e-9)/ binwidth)
+            self.set_length(no_of_bins, preset=None, cycles=None)
 
         if filename is not None:
             self._change_filename(filename)
@@ -450,7 +462,7 @@ class FastComtec(Base, FastCounterInterface):
 
         @param float binwidth: the current binwidth in seconds
 
-        @return float: Red out bitshift converted to binwidth
+        @return float: Read out bitshift converted to binwidth
 
         The binwidth is converted into to an appropiate bitshift defined as
         2**bitshift*minimal_binwidth.
