@@ -503,7 +503,7 @@ class FastComtec(Base, FastCounterInterface):
         self.dll.GetStatusData(ctypes.byref(status), 0)
         return status
 
+
     def load_setup(self, configname):
         cmd = 'loadcnf={0}'.format(configname)
         self.dll.RunCmd(0, bytes(cmd, 'ascii'))
-

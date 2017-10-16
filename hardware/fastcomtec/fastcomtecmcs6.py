@@ -24,8 +24,8 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 #TODO: Check if there are more modules which are missing, and more settings for FastComtec which need to be put, should we include voltage threshold?
 
 
+
 from core.module import Base, ConfigOption
-#from core.module import Base
 from interface.fast_counter_interface import FastCounterInterface
 import time
 import os
@@ -158,7 +158,6 @@ class BOARDSETTING(ctypes.Structure):
                 ('fstchan',     ctypes.c_double),
                 ('timepreset',  ctypes.c_double), ]
 
-
 class FastComtec(Base, FastCounterInterface):
     """
     unstable: Jochen Scheuer, Simon Schmitt
@@ -167,7 +166,6 @@ class FastComtec(Base, FastCounterInterface):
     """
     _modclass = 'FastComtec'
     _modtype = 'hardware'
-
     GATED = ConfigOption('gated', False, missing='warn')
 
     def __init__(self, config, **kwargs):
@@ -244,8 +242,7 @@ class FastComtec(Base, FastCounterInterface):
         constraints['max_sweep_len'] = 6.8
         return constraints
 
-
-    def configure(self, bin_width_s, record_length_s, number_of_gates = 0, filename=None):
+    def configure(self, bin_width_s, record_length_s, number_of_gates=0, filename=None):
         """ Configuration of the fast counter.
 
         @param float bin_width_s: Length of a single time bin in the time trace
@@ -426,7 +423,6 @@ class FastComtec(Base, FastCounterInterface):
 
 
 
-
     # =========================================================================
     #                           Non Interface methods
     # =========================================================================
@@ -472,8 +468,7 @@ class FastComtec(Base, FastCounterInterface):
 
         return self.MINIMAL_BINWIDTH*(2**new_bitshift)
 
-
-
+    #TODO: Check such that only possible lengths are set.
     def set_length(self, length_bins, preset=None, cycles=None):
         """ Sets the length of the length of the actual measurement.
 
