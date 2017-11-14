@@ -54,8 +54,8 @@ class GatedCounterGui(GUIBase):
     _modtype = 'gui'
 
     ## declare connectors
-    gatedcounterlogic1 = Connector(interface='GatedCounterLogic')
-    traceanalysislogic1 = Connector(interface='TraceAnalysisLogic')
+    #gatedcounterlogic1 = Connector(interface='GatedCounterLogic')
+    #traceanalysislogic1 = Connector(interface='TraceAnalysisLogic')
 
 
     sigStartGatedCounter = QtCore.Signal()
@@ -82,9 +82,8 @@ class GatedCounterGui(GUIBase):
                          had happened.
         """
 
-        self._counter_logic = self.get_connector('gatedcounterlogic1')
-        self._trace_analysis = self.get_connector('traceanalysislogic1')
-
+        # self._counter_logic = self.get_connector('gatedcounterlogic1')
+        # self._trace_analysis = self.get_connector('traceanalysislogic1')
         self._mw = GatedCounterMainWindow()
         self._mw.centralwidget.hide()
         self._mw.setDockNestingEnabled(True)
@@ -112,53 +111,53 @@ class GatedCounterGui(GUIBase):
         self._hp.addItem(self._fit_image)
 
         # setting the x axis length correctly
-        self._gp.setXRange(0, self._counter_logic.get_count_length())
-        self._mw.hist_bins_SpinBox.setRange(1, self._counter_logic.get_count_length())
+        #self._gp.setXRange(0, self._counter_logic.get_count_length())
+        #self._mw.hist_bins_SpinBox.setRange(1, self._counter_logic.get_count_length())
 
         # set up the slider with the values of the logic:
-        self._mw.hist_bins_Slider.setRange(1,self._counter_logic.get_count_length())
+        #self._mw.hist_bins_Slider.setRange(1,self._counter_logic.get_count_length())
         self._mw.hist_bins_Slider.setSingleStep(1)
 
         # set the counting mode in the logic:
-        self._counter_logic.set_counting_mode('FINITE_GATED')
+        #self._counter_logic.set_counting_mode('FINITE_GATED')
 
         # Setting default parameters
-        self._mw.count_length_SpinBox.setValue(self._counter_logic.get_count_length())
-        self._mw.count_per_readout_SpinBox.setValue(self._counter_logic.get_counting_samples())
+        #self._mw.count_length_SpinBox.setValue(self._counter_logic.get_count_length())
+        #self._mw.count_per_readout_SpinBox.setValue(self._counter_logic.get_counting_samples())
 
-        # Connecting user interactions
-        # set at first the action buttons in the tab
-        self._mw.start_counter_Action.triggered.connect(self.start_clicked)
-        self._mw.stop_counter_Action.triggered.connect(self.stop_clicked)
-        self._mw.save_measurement_Action.triggered.connect(self.save_clicked)
-        self._mw.actionRestore_Default.triggered.connect(self.set_default_view_main_window)
+        # # Connecting user interactions
+        # # set at first the action buttons in the tab
+        # self._mw.start_counter_Action.triggered.connect(self.start_clicked)
+        # self._mw.stop_counter_Action.triggered.connect(self.stop_clicked)
+        # self._mw.save_measurement_Action.triggered.connect(self.save_clicked)
+        # self._mw.actionRestore_Default.triggered.connect(self.set_default_view_main_window)
+        #
+        # # that is also the default value of the histogram method in logic
+        # # important: the set of a value should not trigger a redrawn of the
+        # # current empty histogram, which is at the start of the program.
+        # self._mw.hist_bins_SpinBox.setValue(50)
+        # # connect now a reaction on a change of the various input widgets:
+        # self._mw.count_length_SpinBox.editingFinished.connect(self.count_length_changed)
+        # self._mw.count_per_readout_SpinBox.editingFinished.connect(self.count_per_readout_changed)
+        # self._mw.hist_bins_Slider.valueChanged.connect(self.num_bins_changed)
+        # self._mw.hist_bins_SpinBox.valueChanged.connect(self.num_bins_changed)
+        # #self._trace_analysis.sigHistogramUpdated.connect(self.update_histogram)
 
-        # that is also the default value of the histogram method in logic
-        # important: the set of a value should not trigger a redrawn of the
-        # current empty histogram, which is at the start of the program.
-        self._mw.hist_bins_SpinBox.setValue(50)
-        # connect now a reaction on a change of the various input widgets:
-        self._mw.count_length_SpinBox.editingFinished.connect(self.count_length_changed)
-        self._mw.count_per_readout_SpinBox.editingFinished.connect(self.count_per_readout_changed)
-        self._mw.hist_bins_Slider.valueChanged.connect(self.num_bins_changed)
-        self._mw.hist_bins_SpinBox.valueChanged.connect(self.num_bins_changed)
-        self._trace_analysis.sigHistogramUpdated.connect(self.update_histogram)
-
-
-        # starting the physical measurement:
-        self.sigStartGatedCounter.connect(self._counter_logic.startCount)
-        self.sigStopGatedCounter.connect(self._counter_logic.stopCount)
-
-        # connect to signals in the logic:
-        self._counter_logic.sigCounterUpdated.connect(self.update_trace)
-        self._counter_logic.sigGatedCounterFinished.connect(self.reset_toolbar_display)
-
-        # configuration of the combo widget
-        fit_functions = self._trace_analysis.get_fit_functions()
-        self._mw.fit_methods_ComboBox.addItems(fit_functions)
-
-        # Push buttons
-        self._mw.fit_PushButton.clicked.connect(self.fit_clicked)
+        #
+        # # starting the physical measurement:
+        # #self.sigStartGatedCounter.connect(self._counter_logic.startCount)
+        # #self.sigStopGatedCounter.connect(self._counter_logic.stopCount)
+        #
+        # # connect to signals in the logic:
+        # #self._counter_logic.sigCounterUpdated.connect(self.update_trace)
+        # #self._counter_logic.sigGatedCounterFinished.connect(self.reset_toolbar_display)
+        #
+        # # configuration of the combo widget
+        # #fit_functions = self._trace_analysis.get_fit_functions()
+        # self._mw.fit_methods_ComboBox.addItems(fit_functions)
+        #
+        # # Push buttons
+        # self._mw.fit_PushButton.clicked.connect(self.fit_clicked)
 
 
     def on_deactivate(self):
@@ -191,20 +190,20 @@ class GatedCounterGui(GUIBase):
         self._mw.addDockWidget(QtCore.Qt.DockWidgetArea(8), self._mw.count_trace_DockWidget)
         self._mw.addDockWidget(QtCore.Qt.DockWidgetArea(8), self._mw.histogram_DockWidget)
 
-    def start_clicked(self):
-        """ Handling the Start button to stop and restart the counter. """
-
-        if self._counter_logic.getState() != 'locked':
-            self.sigStartGatedCounter.emit()
-            self._mw.start_counter_Action.setEnabled(False)
-            self._mw.stop_counter_Action.setEnabled(True)
-
-    def stop_clicked(self):
-        """ Handling the Stop button to stop and restart the counter. """
-
-        if self._counter_logic.getState() == 'locked':
-            self.sigStopGatedCounter.emit()
-            self.reset_toolbar_display()
+    # def start_clicked(self):
+    #     """ Handling the Start button to stop and restart the counter. """
+    #
+    #     if self._counter_logic.getState() != 'locked':
+    #         self.sigStartGatedCounter.emit()
+    #         self._mw.start_counter_Action.setEnabled(False)
+    #         self._mw.stop_counter_Action.setEnabled(True)
+    #
+    # def stop_clicked(self):
+    #     """ Handling the Stop button to stop and restart the counter. """
+    #
+    #     if self._counter_logic.getState() == 'locked':
+    #         self.sigStopGatedCounter.emit()
+    #         self.reset_toolbar_display()
 
     def reset_toolbar_display(self):
         """ Run this method after finishing the counting to get initial status
@@ -223,70 +222,70 @@ class GatedCounterGui(GUIBase):
             file_desc = 'gated_counter'
 
         trace_file_desc = file_desc + '_trace'
-        self._counter_logic.save_current_count_trace(name_tag=trace_file_desc)
+        #self._counter_logic.save_current_count_trace(name_tag=trace_file_desc)
 
         # histo_file_desc = file_desc + '_histogram'
         # self._trace_analysis.save_histogram(file_desc=histo_file_desc)
 
-    def count_length_changed(self):
-        """ Handle the change of the count_length and send it to the measurement.
-        """
+    # def count_length_changed(self):
+    #     """ Handle the change of the count_length and send it to the measurement.
+    #     """
+    #
+    #     self._counter_logic.set_count_length(self._mw.count_length_SpinBox.value())
+    #     self._gp.setXRange(0, self._counter_logic.get_count_length())
+    #     self._mw.hist_bins_Slider.setRange(1, self._counter_logic.get_count_length())
+    #     self._mw.hist_bins_SpinBox.setRange(1, self._counter_logic.get_count_length())
 
-        self._counter_logic.set_count_length(self._mw.count_length_SpinBox.value())
-        self._gp.setXRange(0, self._counter_logic.get_count_length())
-        self._mw.hist_bins_Slider.setRange(1, self._counter_logic.get_count_length())
-        self._mw.hist_bins_SpinBox.setRange(1, self._counter_logic.get_count_length())
+    # def count_per_readout_changed(self):
+    #     """ Handling the change of the oversampling and sending it to the measurement.
+    #     """
+    #     self._counter_logic.set_counting_samples(samples=self._mw.count_per_readout_SpinBox.value())
+    #
+    # def update_trace(self):
+    #     """ The function that grabs the data and sends it to the plot. """
+    #
+    #     if self._counter_logic.getState() == 'locked':
+    #         self._trace1.setData(x=np.arange(0, self._counter_logic.get_count_length()),
+    #                              y=self._counter_logic.countdata[0] )
 
-    def count_per_readout_changed(self):
-        """ Handling the change of the oversampling and sending it to the measurement.
-        """
-        self._counter_logic.set_counting_samples(samples=self._mw.count_per_readout_SpinBox.value())
-
-    def update_trace(self):
-        """ The function that grabs the data and sends it to the plot. """
-
-        if self._counter_logic.getState() == 'locked':
-            self._trace1.setData(x=np.arange(0, self._counter_logic.get_count_length()),
-                                 y=self._counter_logic.countdata[0] )
-
-    def update_histogram(self):
-        """ Update procedure for the histogram to display the new data. """
-
-        self._histoplot1.setData(x=self._trace_analysis.hist_data[0],
-                                 y=self._trace_analysis.hist_data[1],
-                                 stepMode=True, fillLevel=0,
-                                 brush=palettedark.c1)
-
-    def num_bins_changed(self, num_bins):
-        """
-        @param int num_bins: Number of bins to be set in the trace.
-
-        This method is executed by both events, the valueChanged of the SpinBox
-        and value changed in the Slider. Until now, there appears no infinite
-        signal loop. It that occur one day, than this method has to be split
-        in two seperate methods.
-        """
-
-        self._trace_analysis.set_num_bins_histogram(num_bins)
-        self._mw.hist_bins_SpinBox.setValue(num_bins)
-        self._mw.hist_bins_Slider.setValue(num_bins)
+    # def update_histogram(self):
+    #     """ Update procedure for the histogram to display the new data. """
+    #
+    #     self._histoplot1.setData(x=self._trace_analysis.hist_data[0],
+    #                              y=self._trace_analysis.hist_data[1],
+    #                              stepMode=True, fillLevel=0,
+    #                              brush=palettedark.c1)
+    #
+    # def num_bins_changed(self, num_bins):
+    #     """
+    #     @param int num_bins: Number of bins to be set in the trace.
+    #
+    #     This method is executed by both events, the valueChanged of the SpinBox
+    #     and value changed in the Slider. Until now, there appears no infinite
+    #     signal loop. It that occur one day, than this method has to be split
+    #     in two seperate methods.
+    #     """
+    #
+    #     self._trace_analysis.set_num_bins_histogram(num_bins)
+    #     self._mw.hist_bins_SpinBox.setValue(num_bins)
+    #     self._mw.hist_bins_Slider.setValue(num_bins)
 
 
-    def fit_clicked(self):
-        """ Do the configured fit and show it in the sum plot """
-        self._mw.fit_param_TextEdit.clear()
-
-        current_fit_function = self._mw.fit_methods_ComboBox.currentText()
-
-        fit_x, fit_y, fit_param_dict, fit_result = self._trace_analysis.do_fit(fit_function=current_fit_function)
-
-        self._fit_image.setData(x=fit_x, y=fit_y, pen=pg.mkPen(palette.c2, width=2))
-
-        if len(fit_param_dict) == 0:
-            fit_result = 'No Fit parameter passed.'
-
-        else:
-            fit_result = units.create_formatted_output(fit_param_dict)
-        self._mw.fit_param_TextEdit.setPlainText(fit_result)
-
-        return
+    # def fit_clicked(self):
+    #     """ Do the configured fit and show it in the sum plot """
+    #     self._mw.fit_param_TextEdit.clear()
+    #
+    #     current_fit_function = self._mw.fit_methods_ComboBox.currentText()
+    #
+    #     fit_x, fit_y, fit_param_dict, fit_result = self._trace_analysis.do_fit(fit_function=current_fit_function)
+    #
+    #     self._fit_image.setData(x=fit_x, y=fit_y, pen=pg.mkPen(palette.c2, width=2))
+    #
+    #     if len(fit_param_dict) == 0:
+    #         fit_result = 'No Fit parameter passed.'
+    #
+    #     else:
+    #         fit_result = units.create_formatted_output(fit_param_dict)
+    #     self._mw.fit_param_TextEdit.setPlainText(fit_result)
+    #
+    #     return

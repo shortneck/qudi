@@ -39,7 +39,7 @@ class TraceAnalysisLogic(GenericLogic):
     _modtype = 'logic'
 
     # declare connectors
-    counterlogic1 = Connector(interface='CounterLogic')
+    #counterlogic1 = Connector(interface='CounterLogic')
     savelogic = Connector(interface='SaveLogic')
     fitlogic = Connector(interface='FitLogic')
 
@@ -67,11 +67,11 @@ class TraceAnalysisLogic(GenericLogic):
         """ Initialisation performed during activation of the module.
         """
 
-        self._counter_logic = self.get_connector('counterlogic1')
+        #self._counter_logic = self.get_connector('counterlogic1')
         self._save_logic = self.get_connector('savelogic')
         self._fit_logic = self.get_connector('fitlogic')
 
-        self._counter_logic.sigGatedCounterFinished.connect(self.do_calculate_histogram)
+        #self._counter_logic.sigGatedCounterFinished.connect(self.do_calculate_histogram)
 
 
         self.current_fit_function = 'No Fit'
@@ -225,6 +225,61 @@ class TraceAnalysisLogic(GenericLogic):
         param.update(fit_param)
 
         return flip_prob, param
+
+    def analyze_flip_prob2(self, trace, threshold=1, analyze_mode='full'):
+        """General method, which analysis how often a value was changed from
+           one data point to another in relation to a certain threshold.
+
+        @param np.array trace: 1D trace of data
+        @param int num_bins: optional, if a specific size for the histogram is
+                             desired, which is used to calculate the threshold.
+        @param float threshold: optional, if a specific threshold is going to be
+                                used, otherwise the threshold is calculated from
+                                the data.
+
+        @return tuple(flip_prop, param):
+
+                      float flip_prop: the actual flip probability
+                      int num_of_flips: the total number of flips
+                      float fidelity: the fidelity
+                      float threshold: the calculated or passed threshold
+                      float lifetime_dark: the lifetime in the dark state in s
+                      float lifetime_bright: lifetime in the bright state in s
+        """
+        no_flip = 0.0
+
+        if analyze_mode == 'full':
+            for ii in range(len(trace) - 1):
+                if trace[ii] > threshold and trace[ii + 1] > threshold:
+                    no_flip = no_flip + 1
+
+                elif trace[ii] < threshold and trace[ii + 1] < threshold:
+                    no_flip = no_flip + 1
+
+            probability = 1.0 - (no_flip / len(trace))
+            lost_events = 0.0
+
+        if analyze_mode == 'dark':
+            dark_counter = 0.0
+            for ii in range(len(trace) - 1):
+                if trace[ii] < threshold:
+                    dark_counter = dark_counter + 1
+                    if trace[ii + 1] < threshold:
+                        no_flip = no_flip + 1
+            probability = 1.0 - (no_flip / dark_counter)
+            lost_events = (1.0 - (dark_counter / len(trace))) * 100
+
+        if analyze_mode == 'bright':
+            bright_counter = 0.0
+            for ii in range(len(trace) - 1):
+                if trace[ii] > threshold:
+                    bright_counter = bright_counter + 1
+                    if trace[ii + 1] > threshold:
+                        no_flip = no_flip + 1
+            probability = 1.0 - (no_flip / bright_counter)
+            lost_events = (1.0 - (bright_counter / len(trace))) * 100
+
+        return probability, lost_events
 
     def analyze_flip_prob_postselect(self):
         """ Post select the data trace so that the flip probability is only
