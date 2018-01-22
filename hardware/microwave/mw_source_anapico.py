@@ -36,7 +36,7 @@ from interface.microwave_interface import TriggerEdge
 class MicrowaveAnapico(Base, MicrowaveInterface):
     """ This is the Interface class to define the controls for the simple
         microwave hardware from Anapico (APSIN 6000) via Ethernet.
-        sweep mode not tested and might be unstable (Jan Kurzhals)
+        sweep mode not tested and might be unstable
     """
     _modclass = 'MicrowaveAnapico'
     _modtype = 'hardware'
@@ -269,7 +269,6 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
 
         """ Activate sweep mode on the microwave source
 
-            not tested
 
         @param start float: start frequency
         @param stop float: stop frequency
