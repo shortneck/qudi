@@ -23,6 +23,8 @@ Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
 """
 
+import time
+
 import numpy as np
 import visa
 
@@ -36,12 +38,13 @@ from interface.microwave_interface import TriggerEdge
 class MicrowaveAnapico(Base, MicrowaveInterface):
     """ This is the Interface class to define the controls for the simple
         microwave hardware from Anapico (APSIN 6000) via Ethernet.
+
         sweep mode not tested and might be unstable
     """
     _modclass = 'MicrowaveAnapico'
     _modtype = 'hardware'
     _ip_address = ConfigOption('ip_address', missing='error')
-    _ip_timeout = ConfigOption('ip_timeout', missing='warn')
+    _ip_timeout = ConfigOption('ip_timeout', missing='error')
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -50,6 +53,7 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         # trying to load the visa connection to the module
         self.rm = visa.ResourceManager()
         try:
+            print('setting up the connection ')
             self._ip_connection = self.rm.open_resource(
                 self._ip_address,
                 timeout=self._ip_timeout*1000)
@@ -63,6 +67,8 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         self.model = self._ip_connection.query('*IDN?;').split(',')[1]
         self.log.info('Anapico {} initialised and connected to hardware.'
                 ''.format(self.model))
+        print('setting up the freq mode to cw')
+        self._ip_connection.write(':FREQ:MODE CW')
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
@@ -90,26 +96,83 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         limits.sweep_maxentries = 3501
         return limits
 
-    def on(self):
+    def cw_on(self):
         """ Switches on any preconfigured microwave output.
 
         @return int: error code (0:OK, -1:error)
         """
-        self._ip_connection.write(':OUTP ON;')
-        self._ip_connection.write('*WAI;')
 
+        current_mode, is_running = self.get_status()
+
+        print('in cw on mit den current mode und is running ', current_mode, is_running)
+
+        if is_running:
+            print('is running here')
+            if current_mode == 'cw':
+                return 0
+            else:
+                print('turning off')
+                self.off()
+
+
+
+        if current_mode != 'cw':
+            print('!!!!!!!!!!!mode is ', mode)
+            self._ip_connection.write(':FREQ:MODE CW')
+            self._ip_connection.write('*WAI')
+
+        self._ip_connection.write('OUTP:STAT ON')
+        self._ip_connection.write('*WAI')
+
+        dummy, is_running = self.get_status()
+        while not is_running:
+            time.sleep(0.2)
+            dummy, is_running = self.get_status()
         return 0
+
+
+    def get_status(self):
+        """
+        Gets the current status of the MW source, i.e. the mode (cw, list or sweep) and
+        the output state (stopped, running)
+
+        @return str, bool: mode ['cw', 'list', 'sweep'], is_running [True, False]
+        """
+
+        is_running = bool(int(float(self._ip_connection.query(':OUTP:STAT?'))))
+        mode = self._ip_connection.query(':FREQ:MODE?').strip('\n').lower()
+        if mode == 'fix':
+         #   self._ip_connection.write(':FREQ:MODE CW')
+           mode = 'cw'
+        print('MODE OF THE MW GE ', mode, ' with is running ',is_running)
+        if mode == 'swe':
+            mode = 'sweep'
+
+        return mode, is_running
 
     def off(self):
         """ Switches off any microwave output.
 
         @return int: error code (0:OK, -1:error)
         """
+        print('IN OFF METHOD')
+        mode, is_running = self.get_status()
 
-        if self._ip_connection.query(':FREQ:MODE?;') != 'CW':
-            self._ip_connection.write(':FREQ:MODE CW;')
-        self._ip_connection.write(':OUTP OFF;')
-        self._ip_connection.write('*WAI;')
+
+        print('here the mode is ', mode)
+        if not is_running:
+            return 0
+
+        if mode == 'list':
+            print('changing to freq mode cw')
+            self._ip_connection.write(':FREQ:MODE CW')
+            self._ip_connection.write('*WAI')
+
+        self._ip_connection.write(':OUTP OFF')
+        self._ip_connection.write('*WAI')
+        while int(float(self._ip_connection.query('OUTP:STAT?'))) != 0:
+            time.sleep(0.2)
+
         return 0
 
     def get_power(self):
@@ -152,7 +215,7 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         else:
             return -1
 
-    def set_cw(self, freq=None, power=None, useinterleave=None):
+    def set_cw(self, frequency=None, power=None):
         """ Sets the MW mode to cw and additionally frequency and power
 
         @param float freq: frequency to set in Hz
@@ -163,18 +226,30 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
 
         Interleave option is used for arbitrary waveform generator devices.
         """
-        error = 0
-        if freq is not None:
-            error = self.set_frequency(freq)
-        else:
-            return -1
 
+        mode, is_running = self.get_status()
+
+        if is_running:
+            self.off()
+
+        # Activate CW mode
+        if mode != 'cw':
+            self._ip_connection.write(':OUTP:STAT ON')
+            self._ip_connection.write('*WAI')
+        # Set CW frequency
+        if frequency is not None:
+            self.set_frequency(frequency)
+            self._ip_connection.write('*WAI')
+        # Set CW power
         if power is not None:
-            error = self.set_power(power)
-        else:
-            return -1
-        self._ip_connection.write(':FREQ:MODE CW;')
-        return error
+            self.set_power(power)
+            self._ip_connection.write('*WAI')
+        # Return actually set values
+        mode, dummy = self.get_status()
+        actual_freq = self.get_frequency()
+        actual_power = self.get_power()
+
+        return actual_freq, actual_power, mode
 
     def set_list(self, freq=None, power=None):
         """ Sets the MW mode to list mode
@@ -216,9 +291,14 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         dwellcommand = 'LIST:DWEL' + dwellstring
         self._ip_connection.write(delcommand)
         self._ip_connection.write(dwellcommand)
+        self._ip_connection.write(':FREQ:MODE LIST')
+        actual_freq = self.get_frequency()
+        actual_power = self.get_power()
 
+        mode, dummy = self.get_status()
 
-        return error
+        print('returning the mode as ', mode)
+        return actual_freq, actual_power, mode
 
     def reset_listpos(self):
         """ Reset of MW List Mode position to start from first given frequency
@@ -230,16 +310,29 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         return 0
 
     def list_on(self):
-        """ Switches on the list mode.
-
-        @return int: error code (1: ready, 0:not ready, -1:error)
         """
-        self._ip_connection.write(':OUTP ON;')
-        self._ip_connection.write('*WAI;')
-        self._ip_connection.write(':FREQ:MODE LIST;')
-        self._ip_connection.write('*WAI;')
+        Switches on the list mode microwave output.
+        Must return AFTER the device is actually running.
 
-        return self._ip_connection.query('*OPC?')
+        @return int: error code (0:OK, -1:error)
+        """
+
+        current_mode, is_running = self.get_status()
+        if is_running:
+            if current_mode == 'list':
+                return 0
+            else:
+                self.off()
+
+                self._ip_connection.write(':FREQ:MODE LIST')
+        self._ip_connection.write('*WAI;')
+        self._ip_connection.write(':OUTP:STAT ON')
+        self._ip_connection.write('*WAI;')
+        dummy, is_running = self.get_status()
+        while not is_running:
+            time.sleep(0.2)
+            dummy, is_running = self.get_status()
+        return 0
 
     def set_ext_trigger(self, pol=TriggerEdge.RISING):
         """ Set the external trigger for this device with proper polarization.
@@ -249,23 +342,29 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
 
         @return int: error code (0:OK, -1:error)
         """
+
+
         if pol == TriggerEdge.RISING:
             edge = 'POS'
         elif pol == TriggerEdge.FALLING:
             edge = 'NEG'
         else:
-            return -1
-        try:
+            self.log.warning('No valid trigger polarity passed to microwave hardware module.')
+            edge = None
 
-            self._ip_connection.write(':TRIG:TYPE POIN')
-            self._ip_connection.write(':TRIG:SOUR EXT;')
+        if edge is not None:
             self._ip_connection.write(':TRIG:SLOP {0};'.format(edge))
 
-        except:
-            return -1
-        return 0
+        self._ip_connection.write(':TRIG:TYPE POIN')
+        self._ip_connection.write(':TRIG:SOUR EXT;')
+        polarity = self._ip_connection.query(':TRIG:SLOP?')
 
-    def set_sweep(self, start, stop, step, power):
+        if 'NEG' in polarity:
+            return TriggerEdge.FALLING
+        else:
+            return TriggerEdge.RISING
+
+    def set_sweep(self, start=None, stop=None, step=None, power=None):
 
         """ Activate sweep mode on the microwave source
 
@@ -276,21 +375,42 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         @param power float: output power
         @return int: number of frequency steps generated
         """
-        self._ip_connection.write(':SOUR:POW ' + str(power)+';')
-        self._ip_connection.write('*WAI')
-        self._step_points = int((stop-start-step)/step)
-        self._ip_connection.write(':SOUR:FREQ:STAR ' + str(start-step)+';')
-        self._ip_connection.write(':SOUR:FREQ:STOP ' + str(stop)+';')
-        self._ip_connection.write(':SOUR:SWE:POIN' + str(self._step_points)+';')
-        self._ip_connection.write(':SOUR:SWE:SPAC LIN;')
-        self._ip_connection.write(':TRIG:SOUR BUS;')
-        self._ip_connection.write('*WAI;')
+
+        mode, is_running = self.get_status()
+
+        if is_running:
+            self.off()
+
+        if mode != 'sweep':
+            self._ip_connection.write(':FREQ:MODE SWE')
+
+        if (start is not None) and (stop is not None) and (step is not None) and (power is not None):
+            self._ip_connection.write(':SOUR:POW:MODE FIX')
+            self._ip_connection.write(':SOUR:POW ' + str(power)+';')
+            self._ip_connection.write('*WAI')
+            self._step_points = int((stop-start-step)/step)
+            self._ip_connection.write(':SOUR:FREQ:STAR ' + str(start)+';')
+            self._ip_connection.write(':SOUR:FREQ:STOP ' + str(stop)+';')
+            self._ip_connection.write(':SOUR:SWE:POIN' + str(self._step_points)+';')
+            self._ip_connection.write(':SOUR:SWE:SPAC LIN;')
+
+            self._ip_connection.write('*WAI;')
         n = int(np.round(float(self._ip_connection.query(':SWE:FREQ:POIN?;'))))
         if n != len(self._mw_frequency_list):
              return -1
+
+        self._ip_connection.write(':TRIG:TYPE POIN')
+        self._ip_connection.write(':TRIG:SOUR EXT;')
+
+        actual_power = self.get_power()
+        freq_list = self.get_frequency()
+        mode, dummy = self.get_status()
+        return freq_list[0], freq_list[1], freq_list[2], actual_power, mode
+
+
         return n - 1
 
-    def reset_sweep(self):
+    def reset_sweeppos(self):
         """ Reset of MW List Mode position to start from first given frequency
 
         @return int: error code (0:OK, -1:error)
@@ -303,5 +423,21 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
 
         @return int: error code ( 0:ok, -1:error)
         """
-        self._ip_connection.write('*TRG;')
+
+        current_mode, is_running = self.get_status()
+        if is_running:
+            if current_mode == 'sweep':
+                return 0
+            else:
+                self.off()
+
+        if current_mode != 'sweep':
+            self._command_wait(':FREQ:MODE SWE')
+
+        self._ip_connection.write(':OUTP:STAT ON')
+        dummy, is_running = self.get_status()
+        while not is_running:
+            time.sleep(0.2)
+            dummy, is_running = self.get_status()
         return 0
+
