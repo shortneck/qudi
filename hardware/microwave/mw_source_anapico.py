@@ -53,7 +53,6 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         # trying to load the visa connection to the module
         self.rm = visa.ResourceManager()
         try:
-            print('setting up the connection ')
             self._ip_connection = self.rm.open_resource(
                 self._ip_address,
                 timeout=self._ip_timeout*1000)
@@ -62,12 +61,10 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
                       'address >>{}<<.'.format(self._ip_address))
             raise
         # native command mode, some things are missing in SCPI mode
-        #self._ip_connection.write('SYST:LANG \"NATIVE\"')
         self._ip_connection.read_termination = '\n'
         self.model = self._ip_connection.query('*IDN?;').split(',')[1]
         self.log.info('Anapico {} initialised and connected to hardware.'
                 ''.format(self.model))
-        print('setting up the freq mode to cw')
         self._ip_connection.write(':FREQ:MODE CW')
 
     def on_deactivate(self):
@@ -104,20 +101,13 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
 
         current_mode, is_running = self.get_status()
 
-        print('in cw on mit den current mode und is running ', current_mode, is_running)
-
         if is_running:
-            print('is running here')
             if current_mode == 'cw':
                 return 0
             else:
-                print('turning off')
                 self.off()
 
-
-
         if current_mode != 'cw':
-            print('!!!!!!!!!!!mode is ', mode)
             self._ip_connection.write(':FREQ:MODE CW')
             self._ip_connection.write('*WAI')
 
@@ -142,9 +132,7 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         is_running = bool(int(float(self._ip_connection.query(':OUTP:STAT?'))))
         mode = self._ip_connection.query(':FREQ:MODE?').strip('\n').lower()
         if mode == 'fix':
-         #   self._ip_connection.write(':FREQ:MODE CW')
            mode = 'cw'
-        print('MODE OF THE MW GE ', mode, ' with is running ',is_running)
         if mode == 'swe':
             mode = 'sweep'
 
@@ -155,16 +143,11 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
 
         @return int: error code (0:OK, -1:error)
         """
-        print('IN OFF METHOD')
         mode, is_running = self.get_status()
-
-
-        print('here the mode is ', mode)
         if not is_running:
             return 0
 
         if mode == 'list':
-            print('changing to freq mode cw')
             self._ip_connection.write(':FREQ:MODE CW')
             self._ip_connection.write('*WAI')
 
@@ -281,7 +264,7 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         self._ip_connection.write('*WAI;')
         self._ip_connection.write(':LIST:MODE:MAN')
 
-        #create command for delaytime, apparently important because otherwise list mode won't work (bug anapico???)
+        #create command for delaytime, apparently important because otherwise list mode won't work
         delstring = ' {0:f}'.format(0)
         dwellstring = ' {0:f}'.format(1)
         for i in range(0,len(freq)):
@@ -296,8 +279,6 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         actual_power = self.get_power()
 
         mode, dummy = self.get_status()
-
-        print('returning the mode as ', mode)
         return actual_freq, actual_power, mode
 
     def reset_listpos(self):
