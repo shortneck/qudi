@@ -23,6 +23,7 @@ import datetime
 import time
 from collections import OrderedDict
 
+import matplotlib.pyplot as plt
 import numpy as np
 from qtpy import QtCore
 
@@ -297,7 +298,7 @@ class AutocorrelationLogic(GenericLogic):
                          (self.get_count_length()/2)*self.get_bin_width()/(1e12),
                           self.get_bin_width()/(1e12))
         data['counts'] = self.rawdata
-        fig = None
+        fig = self.draw_figure(data)
         self._save_logic.save_data(data,
                                    filepath=filepath,
                                    parameters=parameters,
@@ -307,3 +308,25 @@ class AutocorrelationLogic(GenericLogic):
                                    timestamp=timestamp,
                                    plotfig=fig)
         return
+
+    def draw_figure(self, data):
+        """ Draw figure to save with data file.
+
+        @param: nparray data: a numpy array containing counts vs delaytime between two detectors
+
+        @return: fig fig: a matplotlib figure object to be saved to file.
+        """
+
+        count_data = data['counts']
+        time_data = data['delay (ps)']
+        time_data = time_data*1e9
+
+        # Use qudi style
+        plt.style.use(self._save_logic.mpl_qd_style)
+
+        fig, ax = plt.subplots()
+        ax.plot(time_data, count_data, linestyle=':',linewidth=0.5)
+        ax.set_xlabel('Delay $\\tau$ (ns)')
+        ax.set_ylabel('Counts')
+
+        return fig

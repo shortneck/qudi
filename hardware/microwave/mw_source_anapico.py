@@ -38,7 +38,6 @@ from interface.microwave_interface import TriggerEdge
 class MicrowaveAnapico(Base, MicrowaveInterface):
     """ This is the Interface class to define the controls for the simple
         microwave hardware from Anapico (APSIN 6000) via Ethernet.
-
         sweep mode not tested and might be unstable
     """
     _modclass = 'MicrowaveAnapico'
@@ -61,6 +60,7 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
                       'address >>{}<<.'.format(self._ip_address))
             raise
         # native command mode, some things are missing in SCPI mode
+        #self._ip_connection.write('SYST:LANG \"NATIVE\"')
         self._ip_connection.read_termination = '\n'
         self.model = self._ip_connection.query('*IDN?;').split(',')[1]
         self.log.info('Anapico {} initialised and connected to hardware.'
@@ -107,6 +107,8 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
             else:
                 self.off()
 
+
+
         if current_mode != 'cw':
             self._ip_connection.write(':FREQ:MODE CW')
             self._ip_connection.write('*WAI')
@@ -132,6 +134,7 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         is_running = bool(int(float(self._ip_connection.query(':OUTP:STAT?'))))
         mode = self._ip_connection.query(':FREQ:MODE?').strip('\n').lower()
         if mode == 'fix':
+         #   self._ip_connection.write(':FREQ:MODE CW')
            mode = 'cw'
         if mode == 'swe':
             mode = 'sweep'
@@ -144,6 +147,8 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         @return int: error code (0:OK, -1:error)
         """
         mode, is_running = self.get_status()
+
+
         if not is_running:
             return 0
 
@@ -264,7 +269,7 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         self._ip_connection.write('*WAI;')
         self._ip_connection.write(':LIST:MODE:MAN')
 
-        #create command for delaytime, apparently important because otherwise list mode won't work
+        #create command for delaytime, apparently important because otherwise list mode won't work (bug anapico???)
         delstring = ' {0:f}'.format(0)
         dwellstring = ' {0:f}'.format(1)
         for i in range(0,len(freq)):
@@ -279,6 +284,7 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         actual_power = self.get_power()
 
         mode, dummy = self.get_status()
+
         return actual_freq, actual_power, mode
 
     def reset_listpos(self):
@@ -323,29 +329,23 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
 
         @return int: error code (0:OK, -1:error)
         """
-
-
         if pol == TriggerEdge.RISING:
             edge = 'POS'
         elif pol == TriggerEdge.FALLING:
             edge = 'NEG'
         else:
-            self.log.warning('No valid trigger polarity passed to microwave hardware module.')
-            edge = None
+            return -1
+        try:
 
-        if edge is not None:
+            self._ip_connection.write(':TRIG:TYPE POIN')
+            self._ip_connection.write(':TRIG:SOUR EXT;')
             self._ip_connection.write(':TRIG:SLOP {0};'.format(edge))
 
-        self._ip_connection.write(':TRIG:TYPE POIN')
-        self._ip_connection.write(':TRIG:SOUR EXT;')
-        polarity = self._ip_connection.query(':TRIG:SLOP?')
+        except:
+            return -1
+        return 0
 
-        if 'NEG' in polarity:
-            return TriggerEdge.FALLING
-        else:
-            return TriggerEdge.RISING
-
-    def set_sweep(self, start=None, stop=None, step=None, power=None):
+    def set_sweep(self, start, stop, step, power):
 
         """ Activate sweep mode on the microwave source
 
@@ -356,39 +356,18 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
         @param power float: output power
         @return int: number of frequency steps generated
         """
-
-        mode, is_running = self.get_status()
-
-        if is_running:
-            self.off()
-
-        if mode != 'sweep':
-            self._ip_connection.write(':FREQ:MODE SWE')
-
-        if (start is not None) and (stop is not None) and (step is not None) and (power is not None):
-            self._ip_connection.write(':SOUR:POW:MODE FIX')
-            self._ip_connection.write(':SOUR:POW ' + str(power)+';')
-            self._ip_connection.write('*WAI')
-            self._step_points = int((stop-start-step)/step)
-            self._ip_connection.write(':SOUR:FREQ:STAR ' + str(start)+';')
-            self._ip_connection.write(':SOUR:FREQ:STOP ' + str(stop)+';')
-            self._ip_connection.write(':SOUR:SWE:POIN' + str(self._step_points)+';')
-            self._ip_connection.write(':SOUR:SWE:SPAC LIN;')
-
-            self._ip_connection.write('*WAI;')
+        self._ip_connection.write(':SOUR:POW ' + str(power)+';')
+        self._ip_connection.write('*WAI')
+        self._step_points = int((stop-start-step)/step)
+        self._ip_connection.write(':SOUR:FREQ:STAR ' + str(start-step)+';')
+        self._ip_connection.write(':SOUR:FREQ:STOP ' + str(stop)+';')
+        self._ip_connection.write(':SOUR:SWE:POIN' + str(self._step_points)+';')
+        self._ip_connection.write(':SOUR:SWE:SPAC LIN;')
+        self._ip_connection.write(':TRIG:SOUR BUS;')
+        self._ip_connection.write('*WAI;')
         n = int(np.round(float(self._ip_connection.query(':SWE:FREQ:POIN?;'))))
         if n != len(self._mw_frequency_list):
              return -1
-
-        self._ip_connection.write(':TRIG:TYPE POIN')
-        self._ip_connection.write(':TRIG:SOUR EXT;')
-
-        actual_power = self.get_power()
-        freq_list = self.get_frequency()
-        mode, dummy = self.get_status()
-        return freq_list[0], freq_list[1], freq_list[2], actual_power, mode
-
-
         return n - 1
 
     def reset_sweeppos(self):
@@ -404,21 +383,5 @@ class MicrowaveAnapico(Base, MicrowaveInterface):
 
         @return int: error code ( 0:ok, -1:error)
         """
-
-        current_mode, is_running = self.get_status()
-        if is_running:
-            if current_mode == 'sweep':
-                return 0
-            else:
-                self.off()
-
-        if current_mode != 'sweep':
-            self._command_wait(':FREQ:MODE SWE')
-
-        self._ip_connection.write(':OUTP:STAT ON')
-        dummy, is_running = self.get_status()
-        while not is_running:
-            time.sleep(0.2)
-            dummy, is_running = self.get_status()
+        self._ip_connection.write('*TRG;')
         return 0
-

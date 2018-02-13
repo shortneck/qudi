@@ -130,7 +130,7 @@ class AutocorrelationGui(GUIBase):
         self._mw.start_counter_Action.triggered.connect(self.start_clicked)
         self._mw.stop_counter_Action.triggered.connect(self.stop_clicked)
         self._mw.resume_counter_Action.triggered.connect(self.resume_clicked)
-        self._mw.restore_default_view_Action.triggered.connect(self.restore_default_view)
+        self._mw.restore_default_view_Action_2.triggered.connect(self.restore_default_view)
         self._mw.save_measurement_Action.triggered.connect(self.save_clicked)
         # SpinBoxes
         self._mw.count_length_SpinBox.editingFinished.connect(self.count_length_changed)
@@ -174,7 +174,7 @@ class AutocorrelationGui(GUIBase):
         self._mw.start_counter_Action.triggered.disconnect()
         self._mw.count_length_SpinBox.valueChanged.disconnect()
         self._mw.count_freq_SpinBox.valueChanged.disconnect()
-        self._mw.restore_default_view_Action.triggered.disconnect()
+        self._mw.restore_default_view_Action_2.triggered.disconnect()
         # disconnect signals from gui
         self.sigStartCounter.disconnect()
         self.sigStopCounter.disconnect()
@@ -291,18 +291,18 @@ class AutocorrelationGui(GUIBase):
         # Show any hidden dock widgets
         self._mw.counter_trace_DockWidget.show()
         # self._mw.slow_counter_control_DockWidget.show()
-        self._mw.slow_counter_parameters_DockWidget.show()
+        self._mw.autocorrelation_parameters_DockWidget.show()
 
         # re-dock any floating dock widgets
         self._mw.counter_trace_DockWidget.setFloating(False)
-        self._mw.slow_counter_parameters_DockWidget.setFloating(False)
+        self._mw.autocorrelation_parameters_DockWidget.setFloating(False)
 
         # Arrange docks widgets
         self._mw.addDockWidget(QtCore.Qt.DockWidgetArea(1),
                                self._mw.counter_trace_DockWidget
                                )
         self._mw.addDockWidget(QtCore.Qt.DockWidgetArea(8),
-                               self._mw.slow_counter_parameters_DockWidget
+                               self._mw.autocorrelation_parameters_DockWidget
                                )
 
         # Set the toolbar to its initial top area
